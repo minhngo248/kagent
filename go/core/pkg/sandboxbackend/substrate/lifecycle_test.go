@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	atev1alpha1 "github.com/agent-substrate/substrate/pkg/api/v1alpha1"
+	"github.com/kagent-dev/kagent/go/core/pkg/sandboxbackend"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -91,6 +92,26 @@ func TestResolveWorkerPoolRef(t *testing.T) {
 			require.Equal(t, tt.wantRef, key)
 		})
 	}
+}
+
+func TestResolveWorkerPoolRefReturnsDependencyPendingWhenMissing(t *testing.T) {
+	t.Parallel()
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(v1alpha2.AddToScheme(scheme))
+	utilruntime.Must(atev1alpha1.AddToScheme(scheme))
+
+	p := &Lifecycle{
+		Client: fake.NewClientBuilder().WithScheme(scheme).Build(),
+	}
+
+	_, err := p.resolveWorkerPoolRefFor(context.Background(), "kagent", &v1alpha2.TypedLocalReference{Name: "custom-wp"})
+	require.Error(t, err)
+
+	var dep *sandboxbackend.DependencyPendingError
+	require.ErrorAs(t, err, &dep)
+	require.Equal(t, "WorkerPoolNotFound", dep.Reason)
+	require.Equal(t, "Waiting for WorkerPool kagent/custom-wp", dep.Message)
 }
 
 func TestActorTemplateName(t *testing.T) {

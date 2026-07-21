@@ -7,7 +7,9 @@ import (
 
 	atev1alpha1 "github.com/agent-substrate/substrate/pkg/api/v1alpha1"
 	"github.com/kagent-dev/kagent/go/api/v1alpha2"
+	"github.com/kagent-dev/kagent/go/core/pkg/sandboxbackend"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -58,19 +60,6 @@ type LifecycleState struct {
 	ActorTemplateReady bool
 }
 
-func defaultRunscConfig(d LifecycleDefaults) atev1alpha1.RunscConfig {
-	return atev1alpha1.RunscConfig{
-		AMD64: &atev1alpha1.RunscPlatformConfig{
-			URL:        d.RunscAMD64URL,
-			SHA256Hash: d.RunscAMD64SHA256,
-		},
-		ARM64: &atev1alpha1.RunscPlatformConfig{
-			URL:        d.RunscARM64URL,
-			SHA256Hash: d.RunscARM64SHA256,
-		},
-	}
-}
-
 func substrateSnapshotsLocation(ah *v1alpha2.AgentHarness) string {
 	if ah == nil {
 		return substrateSnapshotsLocationFor("", "", "")
@@ -112,6 +101,13 @@ func (p *Lifecycle) resolveWorkerPoolRefFor(
 
 	var wp atev1alpha1.WorkerPool
 	if err := p.Client.Get(ctx, key, &wp); err != nil {
+		if apierrors.IsNotFound(err) {
+			return types.NamespacedName{}, &sandboxbackend.DependencyPendingError{
+				Reason:  "WorkerPoolNotFound",
+				Message: fmt.Sprintf("Waiting for WorkerPool %s", key),
+				Err:     err,
+			}
+		}
 		return types.NamespacedName{}, fmt.Errorf("get WorkerPool %s: %w", key, err)
 	}
 	return key, nil

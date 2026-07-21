@@ -2,6 +2,7 @@ package controller
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/kagent-dev/kagent/go/api/v1alpha2"
 	"k8s.io/apimachinery/pkg/types"
@@ -38,6 +39,27 @@ func reconcileRequestsForRefs(refs []types.NamespacedName) []reconcile.Request {
 		requests = append(requests, reconcile.Request{NamespacedName: ref})
 	}
 	return requests
+}
+
+func sandboxAgentUsesWorkerPool(agent v1alpha2.AgentObject, obj types.NamespacedName, defaultWorkerPool types.NamespacedName) bool {
+	sa, ok := agent.(*v1alpha2.SandboxAgent)
+	if !ok || v1alpha2.AgentSandboxPlatform(sa) != v1alpha2.SandboxPlatformSubstrate {
+		return false
+	}
+
+	if sa.Spec.Substrate != nil && sa.Spec.Substrate.WorkerPoolRef != nil {
+		if name := strings.TrimSpace(sa.Spec.Substrate.WorkerPoolRef.Name); name != "" {
+			return types.NamespacedName{Namespace: sa.Namespace, Name: name} == obj
+		}
+	}
+
+	if defaultWorkerPool.Name == "" {
+		return false
+	}
+	if defaultWorkerPool.Namespace == "" {
+		defaultWorkerPool.Namespace = sa.Namespace
+	}
+	return defaultWorkerPool == obj
 }
 
 func usesMCPServer(agent v1alpha2.AgentObject, obj types.NamespacedName) bool {

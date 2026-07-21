@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/kagent-dev/kagent/go/api/v1alpha2"
 	"github.com/kagent-dev/kagent/go/core/internal/controller/reconciler"
@@ -67,6 +68,7 @@ type SandboxAgentController struct {
 // +kubebuilder:rbac:groups=agents.x-k8s.io,resources=sandboxes/finalizers,verbs=update
 // +kubebuilder:rbac:groups=ate.dev,resources=actortemplates,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=ate.dev,resources=actortemplates/status,verbs=get
+// +kubebuilder:rbac:groups=ate.dev,resources=workerpools,verbs=get;list;watch
 
 func (r *SandboxAgentController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var sa v1alpha2.SandboxAgent
@@ -113,6 +115,15 @@ func (r *SandboxAgentController) SetupWithManager(mgr ctrl.Manager) error {
 		build = build.Watches(
 			&atev1alpha1.ActorTemplate{},
 			handler.EnqueueRequestsFromMapFunc(r.enqueueSandboxAgentForSubstrateResource),
+		).Watches(
+			&atev1alpha1.WorkerPool{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+				return reconcileRequestsForRefs(r.sandboxAgentWorkerPoolDependencyFinder()(ctx, mgr.GetClient(), types.NamespacedName{
+					Name:      obj.GetName(),
+					Namespace: obj.GetNamespace(),
+				}))
+			}),
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		)
 	}
 	build, err = addCommonAgentWatches(build, mgr, agentWatchFinders{
@@ -158,6 +169,24 @@ func (r *SandboxAgentController) sandboxAgentDependencyFinder(errMsg string, pre
 
 		return collectSandboxAgentRefs(list.Items, func(agent v1alpha2.AgentObject) bool {
 			return pred(agent, obj)
+		})
+	}
+}
+
+func (r *SandboxAgentController) sandboxAgentWorkerPoolDependencyFinder() dependentRefFinder {
+	return func(ctx context.Context, cl client.Client, obj types.NamespacedName) []types.NamespacedName {
+		var list v1alpha2.SandboxAgentList
+		if err := cl.List(ctx, &list); err != nil {
+			sandboxAgentControllerLog.Error(err, "failed to list sandboxagents for WorkerPool watch")
+			return nil
+		}
+
+		defaultWorkerPool := types.NamespacedName{}
+		if r.SubstrateLifecycle != nil {
+			defaultWorkerPool = r.SubstrateLifecycle.Defaults.DefaultWorkerPool
+		}
+		return collectSandboxAgentRefs(list.Items, func(agent v1alpha2.AgentObject) bool {
+			return sandboxAgentUsesWorkerPool(agent, obj, defaultWorkerPool)
 		})
 	}
 }

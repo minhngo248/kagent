@@ -270,6 +270,11 @@ func (a *kagentReconciler) reconcileSandboxAgentStatus(ctx context.Context, sa *
 			deployedCondition.Reason = AgentReadyReasonWorkloadReady
 		}
 	}
+	if dep := sandboxbackend.DependencyPendingFromError(reconcileErr); dep != nil {
+		deployedCondition.Status = metav1.ConditionFalse
+		deployedCondition.Reason = dep.Reason
+		deployedCondition.Message = dep.Message
+	}
 
 	return a.updateAgentObjectStatus(ctx, sa, reconcileErr, deployedCondition)
 }
@@ -309,30 +314,33 @@ func (a *kagentReconciler) reconcileAgentStatus(ctx context.Context, agent *v1al
 	return a.updateAgentObjectStatus(ctx, agent, err, deployedCondition)
 }
 
+func acceptedConditionForError(agent v1alpha2.AgentObject, reconcileErr error) metav1.Condition {
+	condition := metav1.Condition{
+		Type:               v1alpha2.AgentConditionTypeAccepted,
+		ObservedGeneration: agent.GetGeneration(),
+	}
+	if reconcileErr == nil {
+		condition.Status = metav1.ConditionTrue
+		condition.Reason = "Reconciled"
+		condition.Message = fmt.Sprintf("%s configuration accepted", agentKind(agent))
+		return condition
+	}
+	if dep := sandboxbackend.DependencyPendingFromError(reconcileErr); dep != nil {
+		condition.Status = metav1.ConditionFalse
+		condition.Reason = dep.Reason
+		condition.Message = dep.Message
+		return condition
+	}
+	condition.Status = metav1.ConditionFalse
+	condition.Reason = "ReconcileFailed"
+	condition.Message = reconcileErr.Error()
+	return condition
+}
+
 func (a *kagentReconciler) updateAgentObjectStatus(ctx context.Context, agent v1alpha2.AgentObject, reconcileErr error, readyCondition metav1.Condition) error {
 	statusRef := agent.GetAgentStatus()
-	var (
-		status  metav1.ConditionStatus
-		message string
-		reason  string
-	)
-	if reconcileErr != nil {
-		status = metav1.ConditionFalse
-		message = reconcileErr.Error()
-		reason = "ReconcileFailed"
-	} else {
-		status = metav1.ConditionTrue
-		reason = "Reconciled"
-		message = fmt.Sprintf("%s configuration accepted", agentKind(agent))
-	}
 
-	conditionChanged := meta.SetStatusCondition(&statusRef.Conditions, metav1.Condition{
-		Type:               v1alpha2.AgentConditionTypeAccepted,
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: agent.GetGeneration(),
-	})
+	conditionChanged := meta.SetStatusCondition(&statusRef.Conditions, acceptedConditionForError(agent, reconcileErr))
 
 	// Warn users when they configure features unsupported by their chosen runtime.
 	// This implements soft validation - warns but doesn't fail reconciliation.
