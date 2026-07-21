@@ -144,12 +144,8 @@ func (h *SubstrateHandler) listSubstrateCRs(ctx context.Context, namespace strin
 		} else if agentName := substrate.SandboxAgentNameFromLabels(tmpl.Labels); agentName != "" {
 			entry.HarnessName = agentName
 		}
-		if ref := tmpl.Spec.WorkerPoolRef; ref.Name != "" {
-			wpNS := ref.Namespace
-			if wpNS == "" {
-				wpNS = tmpl.Namespace
-			}
-			entry.WorkerPoolRef = wpNS + "/" + ref.Name
+		if poolName := strings.TrimSpace(tmpl.Spec.RequiredWorkerPoolName); poolName != "" {
+			entry.WorkerPoolRef = tmpl.Namespace + "/" + poolName
 		}
 		templates = append(templates, entry)
 	}
@@ -208,17 +204,30 @@ func (h *SubstrateHandler) listAteAPIState(ctx context.Context, namespaces []str
 
 func actorEntryFromPB(a *ateapipb.Actor) api.SubstrateActorEntry {
 	return api.SubstrateActorEntry{
-		ActorID:                a.GetActorId(),
+		ActorID:                a.GetMetadata().GetName(),
 		Status:                 substrate.ActorStatusLabel(a.GetStatus()),
 		ActorTemplateNamespace: a.GetActorTemplateNamespace(),
 		ActorTemplateName:      a.GetActorTemplateName(),
 		AteomPodNamespace:      a.GetAteomPodNamespace(),
 		AteomPodName:           a.GetAteomPodName(),
 		AteomPodIP:             a.GetAteomPodIp(),
-		LastSnapshot:           a.GetLastSnapshot(),
+		LastSnapshot:           snapshotName(a.GetLatestSnapshotInfo()),
 		InProgressSnapshot:     a.GetInProgressSnapshot(),
-		Version:                a.GetVersion(),
+		Version:                a.GetMetadata().GetVersion(),
 	}
+}
+
+func snapshotName(snapshot *ateapipb.SnapshotInfo) string {
+	if snapshot == nil {
+		return ""
+	}
+	if external := snapshot.GetExternal(); external != nil {
+		return external.GetSnapshotUriPrefix()
+	}
+	if local := snapshot.GetLocal(); local != nil {
+		return local.GetSnapshotPrefix()
+	}
+	return ""
 }
 
 func workerEntryFromPB(w *ateapipb.Worker) api.SubstrateWorkerEntry {
@@ -226,9 +235,9 @@ func workerEntryFromPB(w *ateapipb.Worker) api.SubstrateWorkerEntry {
 		WorkerNamespace: w.GetWorkerNamespace(),
 		WorkerPool:      w.GetWorkerPool(),
 		WorkerPod:       w.GetWorkerPod(),
-		ActorNamespace:  w.GetActorNamespace(),
-		ActorTemplate:   w.GetActorTemplate(),
-		ActorID:         w.GetActorId(),
+		ActorNamespace:  w.GetAssignment().GetActorTemplate().GetNamespace(),
+		ActorTemplate:   w.GetAssignment().GetActorTemplate().GetName(),
+		ActorID:         w.GetAssignment().GetActor().GetName(),
 		IP:              w.GetIp(),
 		Version:         w.GetVersion(),
 	}

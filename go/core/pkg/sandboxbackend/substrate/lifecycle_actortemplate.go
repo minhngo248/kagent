@@ -9,7 +9,6 @@ import (
 	atev1alpha1 "github.com/agent-substrate/substrate/pkg/api/v1alpha1"
 	"github.com/kagent-dev/kagent/go/api/v1alpha2"
 	"github.com/kagent-dev/kagent/go/core/pkg/sandboxbackend/openclaw"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -67,8 +66,8 @@ func (p *Lifecycle) buildActorTemplate(ctx context.Context, ah *v1alpha2.AgentHa
 			Labels:    lifecycleLabels(ah),
 		},
 		Spec: atev1alpha1.ActorTemplateSpec{
-			PauseImage: p.Defaults.PauseImage,
-			Runsc:      defaultRunscConfig(p.Defaults),
+			PauseImage:   p.Defaults.PauseImage,
+			SandboxClass: atev1alpha1.SandboxClassGvisor,
 			Containers: []atev1alpha1.Container{
 				{
 					Name:  defaultOpenClawContainer,
@@ -81,10 +80,7 @@ func (p *Lifecycle) buildActorTemplate(ctx context.Context, ah *v1alpha2.AgentHa
 					Env: containerEnv,
 				},
 			},
-			WorkerPoolRef: corev1.ObjectReference{
-				Name:      wpKey.Name,
-				Namespace: wpKey.Namespace,
-			},
+			RequiredWorkerPoolName: wpKey.Name,
 			SnapshotsConfig: atev1alpha1.SnapshotsConfig{
 				Location: substrateSnapshotsLocation(ah),
 			},

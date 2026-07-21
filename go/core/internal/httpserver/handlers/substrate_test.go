@@ -15,7 +15,6 @@ import (
 	"github.com/kagent-dev/kagent/go/core/pkg/sandboxbackend/substrate"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -59,7 +58,7 @@ func TestHandleGetSubstrateStatus(t *testing.T) {
 				},
 			},
 			Spec: atev1alpha1.ActorTemplateSpec{
-				WorkerPoolRef: corev1.ObjectReference{Name: "default-wp", Namespace: "kagent"},
+				RequiredWorkerPoolName: "default-wp",
 			},
 			Status: atev1alpha1.ActorTemplateStatus{Phase: atev1alpha1.PhaseReady, GoldenActorID: "golden-1"},
 		},
@@ -67,7 +66,7 @@ func TestHandleGetSubstrateStatus(t *testing.T) {
 
 	ate := &substrate.Client{ControlClient: &stubAteControl{
 		actors: []*ateapipb.Actor{{
-			ActorId:                "ahr-kagent-my-claw",
+			Metadata:               &ateapipb.ResourceMetadata{Name: "ahr-kagent-my-claw"},
 			Status:                 ateapipb.Actor_STATUS_RUNNING,
 			ActorTemplateNamespace: "kagent",
 			ActorTemplateName:      "my-claw",
@@ -76,7 +75,10 @@ func TestHandleGetSubstrateStatus(t *testing.T) {
 			WorkerNamespace: "kagent",
 			WorkerPool:      "default-wp",
 			WorkerPod:       "ateom-0",
-			ActorId:         "ahr-kagent-my-claw",
+			Assignment: &ateapipb.Assignment{
+				ActorTemplate: &ateapipb.KubeNamespacedObjectRef{Namespace: "kagent", Name: "my-claw"},
+				Actor:         &ateapipb.ObjectRef{Name: "ahr-kagent-my-claw"},
+			},
 		}},
 	}}
 

@@ -154,7 +154,7 @@ func substrateConnectionEndpoint(namespace, name string, actor *ateapipb.Actor) 
 	if actor == nil {
 		return "kagent gateway: " + gw
 	}
-	if actorID := strings.TrimSpace(actor.GetActorId()); actorID != "" {
+	if actorID := strings.TrimSpace(actorID(actor)); actorID != "" {
 		return fmt.Sprintf("atenet-router Host %s (UI via kagent %s)", ActorHost(actorID, ""), gw)
 	}
 	return fmt.Sprintf("kagent gateway: %s (actor status %s)", gw, actor.GetStatus())

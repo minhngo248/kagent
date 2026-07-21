@@ -131,7 +131,7 @@ func (b *SandboxAgentActorBackend) DeleteAllSandboxAgentActors(ctx context.Conte
 	}
 	allDone := true
 	for _, actor := range actors {
-		id := strings.TrimSpace(actor.GetActorId())
+		id := strings.TrimSpace(actorID(actor))
 		if id == "" {
 			continue
 		}

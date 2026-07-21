@@ -114,6 +114,17 @@ func (c *Client) Close() error {
 	return nil
 }
 
+func actorRef(actorID string) *ateapipb.ObjectRef {
+	return &ateapipb.ObjectRef{Name: actorID}
+}
+
+func actorID(actor *ateapipb.Actor) string {
+	if actor == nil {
+		return ""
+	}
+	return actor.GetMetadata().GetName()
+}
+
 func (c *Client) callCtx(ctx context.Context) (context.Context, context.CancelFunc) {
 	if c.cfg.CallTimeout <= 0 {
 		return ctx, func() {}
@@ -124,31 +135,25 @@ func (c *Client) callCtx(ctx context.Context) (context.Context, context.CancelFu
 func (c *Client) GetActor(ctx context.Context, actorID string) (*ateapipb.Actor, error) {
 	ctx, cancel := c.callCtx(ctx)
 	defer cancel()
-	resp, err := c.ControlClient.GetActor(ctx, &ateapipb.GetActorRequest{ActorId: actorID})
-	if err != nil {
-		return nil, err
-	}
-	return resp.GetActor(), nil
+	return c.ControlClient.GetActor(ctx, &ateapipb.GetActorRequest{Actor: actorRef(actorID)})
 }
 
 func (c *Client) CreateActor(ctx context.Context, actorID, tmplNS, tmplName string) (*ateapipb.Actor, error) {
 	ctx, cancel := c.callCtx(ctx)
 	defer cancel()
-	resp, err := c.ControlClient.CreateActor(ctx, &ateapipb.CreateActorRequest{
-		ActorId:                actorID,
-		ActorTemplateNamespace: tmplNS,
-		ActorTemplateName:      tmplName,
+	return c.ControlClient.CreateActor(ctx, &ateapipb.CreateActorRequest{
+		Actor: &ateapipb.Actor{
+			Metadata:               &ateapipb.ResourceMetadata{Name: actorID},
+			ActorTemplateNamespace: tmplNS,
+			ActorTemplateName:      tmplName,
+		},
 	})
-	if err != nil {
-		return nil, err
-	}
-	return resp.GetActor(), nil
 }
 
 func (c *Client) ResumeActor(ctx context.Context, actorID string) (*ateapipb.Actor, error) {
 	ctx, cancel := c.callCtx(ctx)
 	defer cancel()
-	resp, err := c.ControlClient.ResumeActor(ctx, &ateapipb.ResumeActorRequest{ActorId: actorID})
+	resp, err := c.ControlClient.ResumeActor(ctx, &ateapipb.ResumeActorRequest{Actor: actorRef(actorID)})
 	if err != nil {
 		return nil, err
 	}
@@ -158,13 +163,13 @@ func (c *Client) ResumeActor(ctx context.Context, actorID string) (*ateapipb.Act
 func (c *Client) SuspendActor(ctx context.Context, actorID string) error {
 	ctx, cancel := c.callCtx(ctx)
 	defer cancel()
-	_, err := c.ControlClient.SuspendActor(ctx, &ateapipb.SuspendActorRequest{ActorId: actorID})
+	_, err := c.ControlClient.SuspendActor(ctx, &ateapipb.SuspendActorRequest{Actor: actorRef(actorID)})
 	return err
 }
 
 func (c *Client) DeleteActor(ctx context.Context, actorID string) error {
 	ctx, cancel := c.callCtx(ctx)
 	defer cancel()
-	_, err := c.ControlClient.DeleteActor(ctx, &ateapipb.DeleteActorRequest{ActorId: actorID})
+	_, err := c.ControlClient.DeleteActor(ctx, &ateapipb.DeleteActorRequest{Actor: actorRef(actorID)})
 	return err
 }

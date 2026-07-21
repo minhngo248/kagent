@@ -24,24 +24,23 @@ type recordingActorClient struct {
 	deleted []string
 }
 
-func (r *recordingActorClient) GetActor(_ context.Context, in *ateapipb.GetActorRequest, _ ...grpc.CallOption) (*ateapipb.GetActorResponse, error) {
-	if slices.Contains(r.deleted, in.GetActorId()) {
+func (r *recordingActorClient) GetActor(_ context.Context, in *ateapipb.GetActorRequest, _ ...grpc.CallOption) (*ateapipb.Actor, error) {
+	actorName := in.GetActor().GetName()
+	if slices.Contains(r.deleted, actorName) {
 		return nil, status.Error(codes.NotFound, "actor deleted")
 	}
-	return &ateapipb.GetActorResponse{
-		Actor: &ateapipb.Actor{
-			ActorId: in.GetActorId(),
-			Status:  ateapipb.Actor_STATUS_SUSPENDED,
-		},
+	return &ateapipb.Actor{
+		Metadata: &ateapipb.ResourceMetadata{Name: actorName},
+		Status:   ateapipb.Actor_STATUS_SUSPENDED,
 	}, nil
 }
 
-func (r *recordingActorClient) DeleteActor(_ context.Context, in *ateapipb.DeleteActorRequest, _ ...grpc.CallOption) (*ateapipb.DeleteActorResponse, error) {
-	r.deleted = append(r.deleted, in.GetActorId())
-	return &ateapipb.DeleteActorResponse{}, nil
+func (r *recordingActorClient) DeleteActor(_ context.Context, in *ateapipb.DeleteActorRequest, _ ...grpc.CallOption) (*ateapipb.Actor, error) {
+	r.deleted = append(r.deleted, in.GetActor().GetName())
+	return &ateapipb.Actor{}, nil
 }
 
-func (r *recordingActorClient) CreateActor(context.Context, *ateapipb.CreateActorRequest, ...grpc.CallOption) (*ateapipb.CreateActorResponse, error) {
+func (r *recordingActorClient) CreateActor(context.Context, *ateapipb.CreateActorRequest, ...grpc.CallOption) (*ateapipb.Actor, error) {
 	panic("not used")
 }
 
@@ -58,6 +57,30 @@ func (r *recordingActorClient) ListWorkers(context.Context, *ateapipb.ListWorker
 }
 
 func (r *recordingActorClient) ListActors(context.Context, *ateapipb.ListActorsRequest, ...grpc.CallOption) (*ateapipb.ListActorsResponse, error) {
+	panic("not used")
+}
+
+func (r *recordingActorClient) UpdateActor(context.Context, *ateapipb.UpdateActorRequest, ...grpc.CallOption) (*ateapipb.UpdateActorResponse, error) {
+	panic("not used")
+}
+
+func (r *recordingActorClient) PauseActor(context.Context, *ateapipb.PauseActorRequest, ...grpc.CallOption) (*ateapipb.PauseActorResponse, error) {
+	panic("not used")
+}
+
+func (r *recordingActorClient) CreateAtespace(context.Context, *ateapipb.CreateAtespaceRequest, ...grpc.CallOption) (*ateapipb.Atespace, error) {
+	panic("not used")
+}
+
+func (r *recordingActorClient) GetAtespace(context.Context, *ateapipb.GetAtespaceRequest, ...grpc.CallOption) (*ateapipb.Atespace, error) {
+	panic("not used")
+}
+
+func (r *recordingActorClient) ListAtespaces(context.Context, *ateapipb.ListAtespacesRequest, ...grpc.CallOption) (*ateapipb.ListAtespacesResponse, error) {
+	panic("not used")
+}
+
+func (r *recordingActorClient) DeleteAtespace(context.Context, *ateapipb.DeleteAtespaceRequest, ...grpc.CallOption) (*ateapipb.Atespace, error) {
 	panic("not used")
 }
 

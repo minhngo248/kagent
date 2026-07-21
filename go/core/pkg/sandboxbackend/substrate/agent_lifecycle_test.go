@@ -3,9 +3,16 @@ package substrate
 import (
 	"testing"
 
+	atev1alpha1 "github.com/agent-substrate/substrate/pkg/api/v1alpha1"
+
 	"github.com/kagent-dev/kagent/go/api/v1alpha2"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestActorTemplateEnvFromPodEnv(t *testing.T) {
@@ -78,4 +85,40 @@ func TestBuildSubstrateKagentContainerCommand(t *testing.T) {
 	}
 	require.Equal(t, "my-agent", envByName["KAGENT_NAME"])
 	require.Equal(t, "kagent", envByName["KAGENT_NAMESPACE"])
+}
+
+func TestBuildSandboxAgentActorTemplateRequiresResolvedWorkerPool(t *testing.T) {
+	t.Parallel()
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(v1alpha2.AddToScheme(scheme))
+	utilruntime.Must(atev1alpha1.AddToScheme(scheme))
+
+	p := &Lifecycle{
+		Client:   fake.NewClientBuilder().WithScheme(scheme).Build(),
+		Defaults: LifecycleDefaults{PauseImage: "registry.example/pause@sha256:deadbeef"},
+	}
+	sa := &v1alpha2.SandboxAgent{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-agent", Namespace: "kagent"},
+		Spec: v1alpha2.SandboxAgentSpec{
+			AgentSpec: v1alpha2.AgentSpec{
+				Type:        v1alpha2.AgentType_Declarative,
+				Declarative: &v1alpha2.DeclarativeAgentSpec{Runtime: v1alpha2.DeclarativeRuntime_Go},
+			},
+		},
+	}
+	wpKey := types.NamespacedName{Namespace: "kagent", Name: "kagent-default"}
+	podTemplate := corev1.PodTemplateSpec{
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{
+				Name:  defaultKagentContainer,
+				Image: "registry.example/kagent/app@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+			}},
+		},
+	}
+
+	tmpl, err := p.buildSandboxAgentActorTemplate(sa, wpKey, podTemplate)
+	require.NoError(t, err)
+	require.Nil(t, tmpl.Spec.WorkerSelector)
+	require.Equal(t, wpKey.Name, tmpl.Spec.RequiredWorkerPoolName)
 }
